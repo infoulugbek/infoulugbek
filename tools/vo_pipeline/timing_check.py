@@ -17,7 +17,7 @@ Nothing is ever adjusted silently.
 """
 import difflib, re, subprocess
 
-VERIFIED, NEEDS_ALIGNMENT = "VERIFIED", "FORCED_ALIGNMENT_REQUIRED"
+VERIFIED, SNAPPED, NEEDS_ALIGNMENT = "VERIFIED", "VERIFIED_AFTER_SNAP", "FORCED_ALIGNMENT_REQUIRED"
 
 
 def detect_silences(path, noise_db=-45, min_silence=0.05):
@@ -105,6 +105,36 @@ def validate(timeline, audio_path, duration, tolerance=0.15, coverage=0.6, sil=N
     return {"status": VERIFIED if not problems else NEEDS_ALIGNMENT, "tolerance": tolerance,
             "clips_checked": len(deltas), "worst_delta": worst, "deltas": deltas,
             "problems": problems, "silences_detected": len(sil)}
+
+
+# ----------------------------------------------------------------------------- end snapping
+def snap_ends(timeline, audio_path, duration, sil=None, release=0.08, min_len=0.2):
+    """Move each sentence END to where the audio says speech actually stops.
+
+    Measured on real Edge TTS (GitHub Actions, windows-latest): sentence starts land within about
+    0.11 s of the audio, but the last sentence of each clip is reported to end 0.84-0.89 s after
+    speech stops (Edge counts trailing silence). Only ends are moved, only earlier, and only to a
+    measured speech offset inside the sentence's own span (+ a short release so the subtitle
+    doesn't vanish on the last syllable). Starts are never touched. Every moved cue keeps its
+    engine value in `engine_end`. Returns (new_timeline, number_of_cues_moved)."""
+    sil = _close_open_silence(detect_silences(audio_path) if sil is None else sil, duration)
+    moved, out = 0, []
+    for x in timeline:
+        if x["type"] != "speech":
+            out.append(x); continue
+        x = {**x, "sentences": [dict(s) for s in x["sentences"]]}
+        ss = x["sentences"]
+        for i, s in enumerate(ss):
+            limit = min(s["end"], ss[i + 1]["start"] if i + 1 < len(ss) else x["end"])
+            off = speech_offset(s["start"], limit, sil)
+            if off is None:
+                continue
+            new_end = min(limit, max(s["start"] + min_len, off + release))
+            if new_end < s["end"] - 1e-3:
+                s.setdefault("engine_end", s["end"]); s["end"] = round(new_end, 4); moved += 1
+        x["speech_end"] = ss[-1]["end"] if ss else x["speech_end"]
+        out.append(x)
+    return out, moved
 
 
 # ----------------------------------------------------------------------------- forced alignment

@@ -301,14 +301,37 @@ def assemble(seq, voice, rate, proxy, run, log):
 
 
 def check_timing(run, log=print, tolerance=0.15):
+    """Verify the SRT against the audio. If only sentence ENDS are off, snap them to the measured
+    speech offsets (keeping the engine values), rewrite the SRT and verify again."""
     data = read_json(os.path.join(run, "timeline.json"))
-    res = timing_check.validate(data["timeline"], os.path.join(run, "narration.wav"), data["duration"], tolerance)
+    wav = os.path.join(run, "narration.wav")
+    sil = timing_check.detect_silences(wav)
+    res = timing_check.validate(data["timeline"], wav, data["duration"], tolerance, sil=sil)
+    if res["status"] != timing_check.VERIFIED and not any("start" in p or "onset" in p or "order" in p
+                                                          or "outside" in p or "planned silence" in p
+                                                          or "no speech" in p for p in res["problems"]):
+        snapped, moved = timing_check.snap_ends(data["timeline"], wav, data["duration"], sil=sil)
+        res2 = timing_check.validate(snapped, wav, data["duration"], tolerance, sil=sil)
+        log(f"timing check: engine timings failed ({len(res['problems'])} problems); "
+            f"snapped {moved} sentence ends to the audio and re-checked")
+        res2["before_snap"] = {"problems": res["problems"], "deltas": res["deltas"], "worst_delta": res["worst_delta"]}
+        res2["cues_snapped"] = moved
+        if res2["status"] == timing_check.VERIFIED:
+            res2["status"] = timing_check.SNAPPED
+            engine_srt = os.path.join(run, "narration.engine.srt")
+            if not os.path.exists(engine_srt):
+                os.replace(os.path.join(run, "narration.srt"), engine_srt)  # keep the engine's version
+            cues = [s for x in snapped if x["type"] == "speech" for s in x["sentences"]]
+            write_srt(os.path.join(run, "narration.srt"), cues)
+            data["timeline"], data["cues"] = snapped, cues
+            write_json(os.path.join(run, "timeline.json"), data)
+        res = res2
     write_json(os.path.join(run, "timing.json"), res)
     log(f"timing check: {res['status']} ({res['clips_checked']} clips, worst delta "
         f"{res['worst_delta'] if res['worst_delta'] is not None else 'n/a'}s, tolerance {tolerance}s)")
     for p in res["problems"][:10]:
         log(f"  - {p}")
-    if res["status"] != timing_check.VERIFIED:
+    if res["status"] not in (timing_check.VERIFIED, timing_check.SNAPPED):
         log("  Edge TTS timings could NOT be verified against the audio. Forced alignment is required: "
             "run `vo_pipeline.py align --run <this folder>` before using the SRT or EDL for editing.")
     return res
@@ -343,7 +366,8 @@ def build_edl(run, log=print):
     total = factory_edit.media_duration(os.path.join(run, "narration.wav"))  # real audio length
     status, srt_name, _ = timing_status(run)
     srt = os.path.join(run, srt_name)
-    scenes = parse_script()
+    present = {x["scene"] for x in tl if x["type"] == "speech"}
+    scenes = [sc for sc in parse_script() if sc["id"] in present]  # partial runs (smoke test) too
     # Audit trail: the skill's own verdict, unmodified.
     raw = subprocess.run([sys.executable, DEADAIR, srt, "--json"], capture_output=True, text=True,
                          encoding="utf-8", check=True).stdout
@@ -378,7 +402,7 @@ def build_edl(run, log=print):
             bounds[order[i - 1]][1] = start
     bounds[order[-1]][1] = total
     est = outline_estimates()
-    warn = status not in (timing_check.VERIFIED, "ALIGNED")
+    warn = status not in (timing_check.VERIFIED, timing_check.SNAPPED, "ALIGNED")
     rows, md = [], []
     md += ["# Piltdown v3: Edit Decision List", "",
            f"Generated {datetime.datetime.now():%Y-%m-%d %H:%M} from `{os.path.basename(os.path.normpath(run))}`.",

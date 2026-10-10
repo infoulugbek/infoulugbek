@@ -44,7 +44,7 @@ Your prompt now starts with `(.venv)`. Every later step assumes that. In a new w
 ```powershell
 python -m unittest discover -s tools\vo_pipeline\tests
 ```
-The last line should be `OK` (44 tests). These tests use synthetic tones and silence. They prove the code works on your machine; they are not a voiceover.
+The last line should be `OK` (48 tests). These tests use synthetic tones and silence. They prove the code works on your machine; they are not a voiceover.
 
 ## 3. Check that Edge TTS really works (about 1 minute, needs internet)
 
@@ -53,7 +53,7 @@ python tools\vo_pipeline\edge_smoke.py --out smoke-test
 ```
 This synthesizes only the first two scenes and checks Edge's timings against the audio. Look at the last lines:
 
-- `"status": "VERIFIED"`: Edge's timings match the audio. Go to step 4.
+- `"status": "VERIFIED"` or `"VERIFIED_AFTER_SNAP"`: the timings match the audio. Go to step 4. (`AFTER_SNAP` means sentence ends were moved to where the audio shows speech stops. Edge reports them up to about 0.9 s late; its original times are kept in `narration.engine.srt`.)
 - `"status": "FORCED_ALIGNMENT_REQUIRED"`: the timings drift. Still go to step 4, and then do step 5.
 - `SMOKE FAILED`: see Troubleshooting below.
 
@@ -84,7 +84,7 @@ explorer (Get-ChildItem production\piltdown-v3 -Directory | Sort-Object Name | S
 | `run.log` | What happened, including the measured words per minute |
 
 **Check the timing status** at the top of `edl.md`:
-- `Timing status: VERIFIED`: you can cut picture to these times.
+- `Timing status: VERIFIED` or `VERIFIED_AFTER_SNAP`: you can cut picture to these times.
 - `Timing status: FORCED_ALIGNMENT_REQUIRED`: **don't** cut picture yet. Do step 5.
 
 ## 5. Forced alignment (only if step 4 says FORCED_ALIGNMENT_REQUIRED)

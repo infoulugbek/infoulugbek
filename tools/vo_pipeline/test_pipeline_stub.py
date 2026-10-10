@@ -20,7 +20,7 @@ def load_pipeline():
     return vp
 
 
-def make_stub(shift=0.0, silent=False):
+def make_stub(shift=0.0, silent=False, inflate=0.0):
     async def tone_stub(text, voice, rate, mp3, proxy=None):
         wpm = 150 * (1 + float(rate.strip("%")) / 100)  # pretend the engine default is 150 wpm
         t, out = 0.12, []
@@ -33,6 +33,10 @@ def make_stub(shift=0.0, silent=False):
             for c in out:
                 for i in range(int((c["start"] + shift) * sr), min(len(buf) // 2, int((c["end"] + shift) * sr))):
                     struct.pack_into("<h", buf, i * 2, int(9000 * math.sin(2 * math.pi * 220 * i / sr)))
+        if inflate:  # mimic real Edge TTS: the clip's last sentence is reported to end late
+            out[-1] = {**out[-1], "end": out[-1]["end"] + inflate}
+            extra = int(inflate * sr) * 2
+            buf += bytearray(extra)  # Edge's clip carries that trailing silence too
         wav = mp3 + ".src.wav"
         with wave.open(wav, "wb") as w:
             w.setnchannels(1); w.setsampwidth(2); w.setframerate(sr); w.writeframes(bytes(buf))
@@ -42,10 +46,10 @@ def make_stub(shift=0.0, silent=False):
     return tone_stub
 
 
-def stub_run(out_root, shift=0.0, silent=False, voice="TEST-STUB"):
+def stub_run(out_root, shift=0.0, silent=False, inflate=0.0, voice="TEST-STUB"):
     vp = load_pipeline()
     sys.modules.setdefault("edge_tts", type(sys)("edge_tts"))  # satisfy the preflight import
-    vp.synth_one = make_stub(shift, silent)
+    vp.synth_one = make_stub(shift, silent, inflate)
     vp.OUT_ROOT = out_root
     argv = sys.argv
     try:

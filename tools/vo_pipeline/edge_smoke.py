@@ -8,7 +8,7 @@ it is written to a temporary folder (or --out) and should not be used in the edi
 
     python tools/vo_pipeline/edge_smoke.py [--voice en-US-ChristopherNeural] [--rate -8%] [--out DIR]
 
-Exit code: 0 = VERIFIED, 3 = FORCED_ALIGNMENT_REQUIRED, 1 = synthesis/network failure.
+Exit code: 0 = VERIFIED or VERIFIED_AFTER_SNAP, 3 = FORCED_ALIGNMENT_REQUIRED, 1 = synthesis/network failure.
 """
 import argparse, json, os, sys, tempfile
 
@@ -38,12 +38,18 @@ def main():
         print(f"SMOKE FAILED: {type(e).__name__}: {e}")
         return 1
     res = vp.check_timing(run, print)
+    vp.build_edl(run, print)
+    for name in ("narration.engine.srt", "narration.srt"):  # print, so the CI log carries the evidence
+        path = os.path.join(run, name)
+        if os.path.exists(path):
+            print(f"----- {name} -----"); print(vp.read_text(path))
     summary = {"voice": a.voice, "rate": a.rate, "duration": round(total, 3), "status": res["status"],
                "worst_delta": res["worst_delta"], "deltas": res["deltas"], "problems": res["problems"],
+               "cues_snapped": res.get("cues_snapped", 0), "before_snap": res.get("before_snap"),
                "folder": run}
     vp.write_json(os.path.join(run, "smoke-summary.json"), summary)
     print(json.dumps(summary, indent=1))
-    return 0 if res["status"] == "VERIFIED" else 3
+    return 0 if res["status"] in ("VERIFIED", "VERIFIED_AFTER_SNAP") else 3
 
 
 if __name__ == "__main__":

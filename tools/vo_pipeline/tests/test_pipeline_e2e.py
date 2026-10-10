@@ -94,6 +94,22 @@ class DriftIsCaught(unittest.TestCase):
         self.assertEqual(vp.read_json(os.path.join(run, "timing.json"))["status"], "FORCED_ALIGNMENT_REQUIRED")
 
 
+class EdgeLikeTimings(unittest.TestCase):
+    def test_inflated_final_sentence_ends_are_snapped_and_verified(self):
+        vp, run = quiet_run(inflate=0.86)  # the overshoot measured on real Edge TTS
+        t = vp.read_json(os.path.join(run, "timing.json"))
+        self.assertEqual(t["status"], "VERIFIED_AFTER_SNAP", t["problems"][:5])
+        self.assertEqual(t["cues_snapped"], 59)
+        self.assertEqual(t["before_snap"]["problems"][0][:5], "S01.1")
+        self.assertTrue(os.path.exists(os.path.join(run, "narration.engine.srt")))
+        md = vp.read_text(os.path.join(run, "edl.md"))
+        self.assertIn("Timing status: VERIFIED_AFTER_SNAP", md); self.assertNotIn("WARNING", md)
+
+    def test_onset_drift_is_not_snapped(self):
+        vp, run = quiet_run(shift=0.35, inflate=0.86)
+        self.assertEqual(vp.read_json(os.path.join(run, "timing.json"))["status"], "FORCED_ALIGNMENT_REQUIRED")
+
+
 class AlignmentPath(unittest.TestCase):
     def test_alignment_replaces_tts_timings_with_measured_ones(self):
         vp, run = quiet_run(shift=0.35)

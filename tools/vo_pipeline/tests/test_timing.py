@@ -68,6 +68,47 @@ class Validator(unittest.TestCase):
             self.assertLess(r["worst_delta"], 0.06)
 
 
+class EndSnapping(unittest.TestCase):
+    """Real Edge TTS (CI, windows-latest): starts within ~0.11 s, but each clip's final sentence
+    reported to end 0.84-0.89 s after the speech stops."""
+
+    def setUp(self):
+        self.tl, self.total = timeline_for([[(0.12, 2.0), (2.3, 4.1)], [(0.12, 3.0)]], [1.5, 2.0])
+
+    def inflated(self, by=0.86):
+        tl = [dict(x) for x in self.tl]
+        for x in tl:
+            if x["type"] == "speech":
+                x["sentences"] = [dict(s) for s in x["sentences"]]
+                x["sentences"][-1]["end"] += by; x["end"] += by
+        return tl
+
+    def test_inflated_ends_fail_then_snap_to_verified(self):
+        with tempfile.TemporaryDirectory() as d:
+            true_spans = [(s["start"], s["end"]) for x in self.tl if x["type"] == "speech" for s in x["sentences"]]
+            p = os.path.join(d, "n.wav"); write_tone_wav(p, self.total + 2, true_spans)
+            bad = self.inflated()
+            self.assertEqual(tc.validate(bad, p, self.total + 2)["status"], tc.NEEDS_ALIGNMENT)
+            snapped, moved = tc.snap_ends(bad, p, self.total + 2)
+            self.assertEqual(moved, 2)
+            r = tc.validate(snapped, p, self.total + 2)
+            self.assertEqual(r["status"], tc.VERIFIED, r["problems"])
+            for x0, x1 in zip(self.tl, snapped):
+                for s0, s1 in zip(x0.get("sentences", []), x1.get("sentences", [])):
+                    self.assertEqual(s1["start"], s0["start"], "starts are never moved")
+                    self.assertLess(abs(s1["end"] - s0["end"]), 0.1)
+            self.assertTrue(all("engine_end" in x["sentences"][-1] for x in snapped if x["type"] == "speech"))
+
+    def test_snapping_never_lengthens_or_moves_starts(self):
+        with tempfile.TemporaryDirectory() as d:
+            spans = [(s["start"], s["end"]) for x in self.tl if x["type"] == "speech" for s in x["sentences"]]
+            p = os.path.join(d, "n.wav"); write_tone_wav(p, self.total, spans)
+            snapped, moved = tc.snap_ends(self.tl, p, self.total)
+            for x0, x1 in zip(self.tl, snapped):
+                for s0, s1 in zip(x0.get("sentences", []), x1.get("sentences", [])):
+                    self.assertLessEqual(s1["end"], s0["end"]); self.assertEqual(s1["start"], s0["start"])
+
+
 class SrtAndPaths(unittest.TestCase):
     def test_srt_rejects_overlap_and_empty_cues(self):
         with tempfile.TemporaryDirectory() as d:
