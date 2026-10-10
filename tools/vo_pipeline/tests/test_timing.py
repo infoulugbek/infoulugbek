@@ -108,6 +108,38 @@ class SrtAndPaths(unittest.TestCase):
             self.assertAlmostEqual(vp.wav_seconds(out), 2.5, places=4)
 
 
+class EngineOverlaps(unittest.TestCase):
+    """Found on real Edge TTS (GitHub Actions, windows-latest): sentence 1 reported to end at
+    5.058 s while sentence 2 started at 5.008 s. The SRT writer refused it, which is correct."""
+
+    def test_measured_edge_overlap_is_resolved_and_recorded(self):
+        sents = [{"start": 0.1, "end": 5.058, "text": "One."}, {"start": 5.008, "end": 7.0, "text": "Two."}]
+        out = vp.resolve_overlaps(sents, "S01.1")
+        self.assertEqual(out[0]["end"], 5.008)
+        self.assertEqual(out[0]["engine_end"], 5.058)
+        self.assertAlmostEqual(out[0]["overlap_fixed"], 0.05, places=3)
+        self.assertEqual(sents[0]["end"], 5.058, "input must not be mutated")
+        with tempfile.TemporaryDirectory() as d:
+            vp.write_srt(os.path.join(d, "ok.srt"), out)  # no longer raises
+
+    def test_large_overlap_is_refused(self):
+        with self.assertRaises(RuntimeError):
+            vp.resolve_overlaps([{"start": 0, "end": 5.5, "text": "a"}, {"start": 5.0, "end": 7, "text": "b"}], "S01.1")
+
+    def test_no_overlap_untouched(self):
+        s = [{"start": 0, "end": 1, "text": "a"}, {"start": 1.2, "end": 2, "text": "b"}]
+        self.assertEqual(vp.resolve_overlaps(s, "k"), s)
+
+
+class CrossDrivePaths(unittest.TestCase):
+    """Found on GitHub Actions windows-latest: temp dir on C:, repository on D:."""
+
+    def test_rel_never_raises_across_drives(self):
+        import unittest.mock as m
+        with m.patch.object(vp.os.path, "relpath", side_effect=ValueError("path is on mount 'C:', start on mount 'D:'")):
+            self.assertEqual(vp.rel("/x/y"), os.path.abspath("/x/y"))
+
+
 class ForcedAlignment(unittest.TestCase):
     def test_maps_recognized_words_to_script_sentences(self):
         sents = ["In 1949, Kenneth Oakley tested Piltdown.", "The dawn man was not ancient."]

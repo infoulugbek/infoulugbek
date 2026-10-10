@@ -198,6 +198,32 @@ def tc(sec):
     return f"{int(m):02d}:{s:04.1f}"
 
 
+def rel(path, start=None):
+    """os.path.relpath that never fails: on Windows two drives (C:/D:) have no relative path."""
+    try:
+        return os.path.relpath(path, start or REPO)
+    except ValueError:
+        return os.path.abspath(path)
+
+
+MAX_ENGINE_OVERLAP = 0.10  # seconds; measured on real Edge TTS output: 0.050 s
+
+
+def resolve_overlaps(sents, key):
+    """Edge TTS SentenceBoundary durations can run past the next sentence's offset (measured: a
+    sentence reported to end at 5.058 s while the next started at 5.008 s). The next sentence's
+    start is the engine's own anchor, so a small overlap is resolved by ending the earlier cue
+    there. Each fix is recorded on the cue; anything larger is treated as broken timing."""
+    out = [dict(s) for s in sents]
+    for a, b in zip(out, out[1:]):
+        over = a["end"] - b["start"]
+        if over > MAX_ENGINE_OVERLAP:
+            raise RuntimeError(f"{key}: Edge TTS sentence timings overlap by {over:.3f}s; not trusting them")
+        if over > 0:
+            a["engine_end"], a["end"], a["overlap_fixed"] = a["end"], b["start"], round(over, 3)
+    return out
+
+
 def concat_line(abs_path):
     """One line of an ffmpeg concat list. Forward slashes work on Windows; quotes are escaped."""
     p = abs_path.replace("\\", "/").replace("'", "'\\''")
@@ -242,9 +268,13 @@ def assemble(seq, voice, rate, proxy, run, log):
             owner = sid
             mp3 = os.path.join(clips, f"{idx:03d}_{p['key']}.mp3"); wav = mp3[:-4] + ".wav"
             log(f"synth {p['key']} ({words(p['text'])} words)")
-            sents = synth(p["text"], voice, rate, mp3, proxy, log=log)
+            sents = resolve_overlaps(synth(p["text"], voice, rate, mp3, proxy, log=log), p["key"])
+            for s in sents:
+                if "overlap_fixed" in s:
+                    log(f"  {p['key']}: engine cue overlapped the next by {s['overlap_fixed']:.3f}s; ended it at the next start")
             to_wav(mp3, wav); dur = wav_seconds(wav)
-            glob = [{"start": t + s["start"], "end": t + s["end"], "text": s["text"], "key": p["key"]} for s in sents]
+            glob = [{**s, "start": t + s["start"], "end": t + s["end"], "key": p["key"],
+                     **({"engine_end": t + s["engine_end"]} if "engine_end" in s else {})} for s in sents]
             cues += glob
             timeline.append({"type": "speech", "scene": sid, "key": p["key"], "text": p["text"],
                              "start": t, "end": t + dur, "sentences": glob,
@@ -510,7 +540,7 @@ def main():
     logf = open(os.path.join(run, "run.log"), "a", encoding="utf-8")
     def log(msg):
         print(msg); logf.write(msg + "\n"); logf.flush()
-    log(f"script {os.path.relpath(SCRIPT, REPO)}; voice {a.voice}; target {a.target_wpm} wpm")
+    log(f"script {rel(SCRIPT)}; voice {a.voice}; target {a.target_wpm} wpm")
     try:
         work = os.path.join(run, "calibration"); os.makedirs(work)
         rate, wpm = (a.rate, None) if a.rate else calibrate(scenes, a.voice, a.target_wpm, a.proxy, work, log)
@@ -520,17 +550,19 @@ def main():
         # Never leave a folder that could be mistaken for a finished voiceover.
         log(f"FAILED: {type(e).__name__}: {e}")
         logf.close(); os.rename(run, run + "-FAILED")
-        sys.exit(f"synthesis failed; see {os.path.relpath(run, REPO)}-FAILED{os.sep}run.log")
-    tl = read_json(os.path.join(run, "timeline.json"))["timeline"]
-    sp = [x for x in tl if x["type"] == "speech"]
-    nw = sum(words(x["text"]) for x in sp)
-    speaking = sum(x["speech_end"] - x["speech_start"] for x in sp)
-    log(f"narration {total:.2f}s; {nw} words; speaking-rate {nw / speaking * 60:.1f} wpm "
-        f"(excludes planned pauses); overall {nw / total * 60:.1f} wpm")
-    check_timing(run, log, a.tolerance)
-    build_edl(run, log)
-    log(f"done: {os.path.relpath(run, REPO)}")
-    logf.close()
+        sys.exit(f"synthesis failed; see {rel(run)}-FAILED{os.sep}run.log")
+    try:
+        tl = read_json(os.path.join(run, "timeline.json"))["timeline"]
+        sp = [x for x in tl if x["type"] == "speech"]
+        nw = sum(words(x["text"]) for x in sp)
+        speaking = sum(x["speech_end"] - x["speech_start"] for x in sp)
+        log(f"narration {total:.2f}s; {nw} words; speaking-rate {nw / speaking * 60:.1f} wpm "
+            f"(excludes planned pauses); overall {nw / total * 60:.1f} wpm")
+        check_timing(run, log, a.tolerance)
+        build_edl(run, log)
+        log(f"done: {rel(run)}")
+    finally:
+        logf.close()
 
 
 if __name__ == "__main__":

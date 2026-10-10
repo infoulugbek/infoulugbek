@@ -68,3 +68,8 @@ Measured during testing (ffmpeg 6.1, synthetic tone audio):
 - The detector's resolution had to drop from 0.12 s to 0.05 s: at 0.12 s, a 0.12 s clip lead-in was invisible and produced a false 0.12 s delta.
 
 Still unverified: how far *real* Edge TTS SentenceBoundary offsets drift from its audio. The cloud session can't reach the service. The `edge-smoke` CI job and `edge_smoke.py` measure exactly that.
+
+### Found by the Windows CI run (GitHub Actions, windows-latest, Python 3.12.10)
+
+- **Real Edge TTS sentence cues overlap.** A sentence was reported to end at 5.058 s while the next one started at 5.008 s. The SRT writer refused it, as designed. Overlaps up to 0.10 s are now resolved by ending the earlier cue at the engine's own next-sentence start, and each fix is recorded on the cue (`engine_end`, `overlap_fixed`). Larger overlaps stop the run. Tests: `EngineOverlaps.*`.
+- **Cross-drive paths.** `os.path.relpath` raises on Windows when the run folder and the repository are on different drives (C: and D:). Replaced by a safe `rel()`. Test: `CrossDrivePaths.*`.

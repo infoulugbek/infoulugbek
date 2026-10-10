@@ -44,7 +44,7 @@ Your prompt now starts with `(.venv)`. Every later step assumes that. In a new w
 ```powershell
 python -m unittest discover -s tools\vo_pipeline\tests
 ```
-The last line should be `OK` (40 tests). These tests use synthetic tones and silence. They prove the code works on your machine; they are not a voiceover.
+The last line should be `OK` (44 tests). These tests use synthetic tones and silence. They prove the code works on your machine; they are not a voiceover.
 
 ## 3. Check that Edge TTS really works (about 1 minute, needs internet)
 
