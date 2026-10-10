@@ -1,0 +1,55 @@
+name: vo-pipeline
+
+on:
+  push:
+    paths:
+      - "tools/vo_pipeline/**"
+      - "scripts/piltdown-man-documentary-v3.md"
+      - ".github/workflows/vo-pipeline.yml"
+  workflow_dispatch:
+
+jobs:
+  offline-tests:
+    name: Offline tests (${{ matrix.os }}, Python 3.12)
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install FFmpeg (Windows)
+        if: runner.os == 'Windows'
+        run: choco install ffmpeg -y --no-progress
+      - name: Install FFmpeg (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Run tests
+        run: python -W error::ResourceWarning -m unittest discover -s tools/vo_pipeline/tests -v
+
+  edge-smoke:
+    # A short REAL Edge TTS synthesis whose sentence timings are checked against the audio.
+    # It depends on an external service, so a failure here is reported but not fatal.
+    name: Real Edge TTS timing smoke test (Windows)
+    runs-on: windows-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: choco install ffmpeg -y --no-progress
+      - run: python -m pip install edge-tts
+      - name: Synthesize S01-S02 and verify timings
+        run: python tools/vo_pipeline/edge_smoke.py --out edge-smoke
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: edge-smoke
+          path: |
+            edge-smoke/*.json
+            edge-smoke/narration.srt
+            edge-smoke/narration.mp3

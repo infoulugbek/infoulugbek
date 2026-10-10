@@ -48,3 +48,23 @@ script ─► TTS (or human recording) ─► transcript (TTS boundaries / Whisp
 ```
 
 Keep the human review gate. The tool's own documentation says it "prints the cuts, you apply them", and the dry run shows why: unsupervised, it would have removed every dramatic pause in the film.
+
+## Update (same day): fixed in the Video Factory layer
+
+Implemented in `factory_edit.py` and `timing_check.py`, with tests in `tools/vo_pipeline/tests/`. The skill files are unchanged; a test checks their hashes.
+
+| Problem | Fix | Test(s) |
+|---|---|---|
+| Cuts planned pauses | Protected ranges are subtracted from every proposal; `assert_no_protected` runs before output; breaths are only ever optional | `ProtectedPauses.*`, `EndToEnd.test_no_cut_touches_a_protected_pause` |
+| Dated parallel lines treated as retakes | Digits kept; a pair is rejected if it differs in a number, month, number word or capitalized name; 15 s window; needs a prefix relation or ≥ 0.8 similarity | `RetakeDetection.*` (including the upstream bug, reproduced) |
+| Duration from the last cue | Duration from the WAV sample count; lead and tail reported | `Duration.*`, `EndToEnd.test_duration_is_the_real_audio_length` |
+| SRT timings never checked against audio | silencedetect onset/offset/coverage check, with forced alignment as the fallback | `Validator.*`, `DriftIsCaught.*`, `AlignmentPath.*` |
+
+Measured during testing (ffmpeg 6.1, synthetic tone audio):
+- Onset/offset error on WAV: 0.000 s.
+- On MP3 with a LAME/Xing delay tag: 0.003 s.
+- On MP3 **without** the tag: 0.046 s (encoder delay). That's inside the 0.15 s tolerance.
+- MP3 container duration overstates by about 0.064 s, so edits are measured against the WAV.
+- The detector's resolution had to drop from 0.12 s to 0.05 s: at 0.12 s, a 0.12 s clip lead-in was invisible and produced a false 0.12 s delta.
+
+Still unverified: how far *real* Edge TTS SentenceBoundary offsets drift from its audio. The cloud session can't reach the service. The `edge-smoke` CI job and `edge_smoke.py` measure exactly that.

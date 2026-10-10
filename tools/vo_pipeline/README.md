@@ -1,5 +1,23 @@
 # Voiceover → SRT → EDL pipeline (Piltdown v3)
 
+> **On Windows, start with [WINDOWS-GUIDE.md](WINDOWS-GUIDE.md):** copy-paste commands and troubleshooting.
+
+## Video Factory integration layer
+
+These modules fix the problems found in the yt-edit integration. They do so **without modifying the skill**: `.claude/skills/yt-edit/` is untouched, and `deadair.py` still runs for the audit trail (`deadair.json`).
+
+| Module | What it does |
+|---|---|
+| `factory_edit.py` | Makes the cut decisions. **Protected pauses** can never be cut: overlaps are subtracted and checked again before writing. **Retakes** keep digits and are rejected when two lines differ in a date, number, month or name, or are more than 15 s apart. **Duration** comes from the real audio (WAV sample count), including opening silence and the tail. |
+| `timing_check.py` | Checks Edge TTS sentence timings against the generated audio with ffmpeg `silencedetect`: speech onset and offset per clip, sentence coverage, silence inside planned pauses, ordering. The result is `VERIFIED` or `FORCED_ALIGNMENT_REQUIRED`. It also maps faster-whisper word timestamps onto the script sentences for forced alignment. |
+| `edge_smoke.py` | A one-minute REAL Edge TTS check of the timing chain (scenes S01–S02). |
+| `tests/` | 40 offline tests (`python -m unittest discover -s tools/vo_pipeline/tests`), also run on Windows and Linux by `.github/workflows/vo-pipeline.yml`. |
+
+New files in each run folder: `protect.json` (planned silences), `timing.json` (the timing check), `factory_edit.json` (cut decisions), and, after `align`, `whisper-words.json`, `alignment.json` and `narration.aligned.srt`. The EDL header always states its **timing status**. It warns not to cut picture when timings are unverified.
+
+New command: `vo_pipeline.py check --run <folder>` re-verifies the timings of an existing run and rebuilds the EDL.
+
+
 `vo_pipeline.py` turns `scripts/piltdown-man-documentary-v3.md` into:
 
 | File | What it is |
@@ -18,7 +36,7 @@ Planned pauses (the scripted beat, the title-card sting, the gaps around reveals
 
 ## Why this wasn't run in the cloud session
 
-The cloud environment's network policy blocks `speech.platform.bing.com`, the Edge TTS endpoint. The proxy answers the connection with HTTP 403, which `edge-tts` reports as `SkewAdjustmentError: No server date in headers`. The optional Whisper cross-check is blocked the same way: `huggingface.co` and `openaipublic.azureedge.net` are unreachable. Every other step was tested offline with `test_pipeline_stub.py`.
+The cloud environment's network policy blocks `speech.platform.bing.com`, the Edge TTS endpoint. The proxy answers the connection with HTTP 403, which `edge-tts` reports as `SkewAdjustmentError: No server date in headers`. The optional Whisper cross-check is blocked the same way: `huggingface.co` and `openaipublic.azureedge.net` are unreachable. Every other step is tested offline by `tests/` (40 tests); the real-service timing check is `edge_smoke.py`.
 
 ## Windows: step by step (PowerShell)
 
@@ -49,11 +67,11 @@ The cloud environment's network policy blocks `speech.platform.bing.com`, the Ed
    pip install edge-tts
    ```
 
-4. **Check the offline logic first** (silent audio; takes about 20 seconds):
+4. **Check the offline logic first** (synthetic tones; takes about 2 minutes):
    ```powershell
-   python tools\vo_pipeline\test_pipeline_stub.py
+   python -m unittest discover -s tools\vo_pipeline\tests
    ```
-   It should print `OK - stub run in ...`. That folder is a test only; delete it.
+   It should end with `OK`. Nothing it generates is a voiceover.
 
 5. **Preview the voice** (optional). Listen to a few candidates and pick one:
    ```powershell
@@ -103,5 +121,5 @@ The cloud environment's network policy blocks `speech.platform.bing.com`, the Ed
 
 - `vo_pipeline.py`: the pipeline (`extract`, `all`, `edl`, `align`).
 - `piltdown-v3-pauses.json`: the pause plan.
-- `test_pipeline_stub.py`: an offline end-to-end test with silent stand-in audio. **Its output is not a voiceover.**
+- `test_pipeline_stub.py`: an offline end-to-end run with synthetic tone audio (used by `tests/`). **Its output is not a voiceover.**
 - `YT-EDIT-ASSESSMENT.md`: how `/yt-edit` fits an automated Video Factory.
