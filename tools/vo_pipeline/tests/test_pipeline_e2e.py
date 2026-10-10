@@ -110,6 +110,17 @@ class EdgeLikeTimings(unittest.TestCase):
         self.assertEqual(vp.read_json(os.path.join(run, "timing.json"))["status"], "FORCED_ALIGNMENT_REQUIRED")
 
 
+class SubtitleSourcePriority(unittest.TestCase):
+    def test_verified_tts_timings_beat_whisper(self):
+        vp, run = quiet_run()  # VERIFIED
+        words = [(c["start"] - 0.3, c["end"] - 0.3, w) for c in vp.read_json(os.path.join(run, "timeline.json"))["cues"]
+                 for w in [c["text"]]]
+        with contextlib.redirect_stdout(io.StringIO()):
+            vp.finish_alignment(run, words, "stub-words")
+        status, srt, _ = vp.timing_status(run)
+        self.assertEqual((status, srt), ("VERIFIED", "narration.srt"))
+
+
 class AlignmentPath(unittest.TestCase):
     def test_alignment_replaces_tts_timings_with_measured_ones(self):
         vp, run = quiet_run(shift=0.35)

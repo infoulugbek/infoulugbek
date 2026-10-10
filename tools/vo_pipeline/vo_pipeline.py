@@ -348,14 +348,21 @@ def outline_estimates(path=OUTLINE):
 
 
 def timing_status(run):
-    """Which SRT the EDL should trust, and how far."""
-    al = os.path.join(run, "alignment.json")
+    """Which SRT the EDL should trust, and how far.
+
+    Audio-verified TTS timings win. Measured on real Edge audio (CI run 38035123448): after
+    snapping, sentence starts were within 0.117 s of the measured onset, while faster-whisper
+    (base.en) word timestamps drifted a median 0.116 s, max 0.312 s (for example, it put the first
+    word at 0.80 s where the audio starts at about 1.21 s). Whisper alignment is the fallback for
+    runs whose TTS timings could not be verified, not an upgrade."""
+    tf, al = os.path.join(run, "timing.json"), os.path.join(run, "alignment.json")
+    t = read_json(tf) if os.path.exists(tf) else None
+    if t and t["status"] in (timing_check.VERIFIED, timing_check.SNAPPED):
+        return t["status"], "narration.srt", t
     if os.path.exists(al):
         a = read_json(al)
         return a["status"], "narration.aligned.srt", a
-    tf = os.path.join(run, "timing.json")
-    if os.path.exists(tf):
-        t = read_json(tf)
+    if t:
         return t["status"], "narration.srt", t
     return "UNCHECKED", "narration.srt", {}
 

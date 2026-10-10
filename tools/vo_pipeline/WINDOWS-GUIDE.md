@@ -44,7 +44,7 @@ Your prompt now starts with `(.venv)`. Every later step assumes that. In a new w
 ```powershell
 python -m unittest discover -s tools\vo_pipeline\tests
 ```
-The last line should be `OK` (48 tests). These tests use synthetic tones and silence. They prove the code works on your machine; they are not a voiceover.
+The last line should be `OK` (50 tests; 1 is skipped unless faster-whisper is installed). These tests use synthetic tones and silence. They prove the code works on your machine; they are not a voiceover.
 
 ## 3. Check that Edge TTS really works (about 1 minute, needs internet)
 
@@ -95,7 +95,7 @@ python -m pip install faster-whisper
 $run = (Get-ChildItem production\piltdown-v3 -Directory | Where-Object Name -notlike '*FAILED' | Sort-Object Name | Select-Object -Last 1).FullName
 python tools\vo_pipeline\vo_pipeline.py align --run $run
 ```
-This writes `narration.aligned.srt` and `alignment.json` and rebuilds `edl.md`. Its header should then say `Timing status: ALIGNED`. If it says `PARTIAL_ALIGNMENT`, the sentences that couldn't be measured are listed in `alignment.json` under `unmatched`. Those are left out of the aligned SRT, never guessed.
+Whisper is the **fallback**, not an upgrade: on real Edge audio its word timings drifted a median 0.12 s (max 0.31 s), which is worse than snapped Edge timings. So the EDL uses Whisper only when the Edge timings could not be verified. This writes `narration.aligned.srt` and `alignment.json` and rebuilds `edl.md`. Its header should then say `Timing status: ALIGNED`. If it says `PARTIAL_ALIGNMENT`, the sentences that couldn't be measured are listed in `alignment.json` under `unmatched`. Those are left out of the aligned SRT, never guessed.
 
 ## 6. Optional changes
 
