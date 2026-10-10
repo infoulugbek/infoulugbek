@@ -181,6 +181,26 @@ class CrossDrivePaths(unittest.TestCase):
             self.assertEqual(vp.rel("/x/y"), os.path.abspath("/x/y"))
 
 
+try:
+    import numpy  # noqa: F401  (installed with faster-whisper)
+    HAVE_NUMPY = True
+except ImportError:
+    HAVE_NUMPY = False
+
+
+@unittest.skipUnless(HAVE_NUMPY, "numpy comes with faster-whisper; only needed for `align`")
+class WhisperAudioLoader(unittest.TestCase):
+    """faster-whisper 1.2.1 + PyAV 19: TypeError in av.open(metadata_errors=...) (seen in CI).
+    The pipeline decodes with ffmpeg itself and passes samples, bypassing that code."""
+
+    def test_16k_float_samples(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = os.path.join(d, "a.wav"); write_tone_wav(p, 2.0, [(0.5, 1.0)])
+            a = vp.load_audio_16k(p)
+            self.assertEqual(str(a.dtype), "float32"); self.assertEqual(len(a), 32000)
+            self.assertAlmostEqual(float(abs(a).max()), 0.3, places=2)
+
+
 class ForcedAlignment(unittest.TestCase):
     def test_maps_recognized_words_to_script_sentences(self):
         sents = ["In 1949, Kenneth Oakley tested Piltdown.", "The dawn man was not ancient."]

@@ -489,10 +489,20 @@ def align(run, model="small.en", log=print):
     """Measure sentence timings from the audio with faster-whisper word timestamps."""
     from faster_whisper import WhisperModel
     m = WhisperModel(model, device="auto", compute_type="int8")
-    segs, _ = m.transcribe(os.path.join(run, "narration.wav"), word_timestamps=True, vad_filter=False)
+    # Decode with ffmpeg ourselves and hand Whisper the samples. faster-whisper 1.2.1's own decoder
+    # calls av.open(..., metadata_errors=...), which PyAV 19 rejects (TypeError) - seen in CI.
+    segs, _ = m.transcribe(load_audio_16k(os.path.join(run, "narration.wav")), word_timestamps=True, vad_filter=False)
     wl = [(w.start, w.end, w.word) for s in segs for w in (s.words or [])]
     write_json(os.path.join(run, "whisper-words.json"), {"words": wl})
     finish_alignment(run, wl, model, log)
+
+
+def load_audio_16k(path):
+    """16 kHz mono float32 samples via ffmpeg (what Whisper expects); needs numpy (a faster-whisper dependency)."""
+    import numpy as np
+    raw = subprocess.run(["ffmpeg", "-v", "error", "-i", path, "-f", "s16le", "-ac", "1", "-ar", "16000", "-"],
+                         capture_output=True, check=True).stdout
+    return np.frombuffer(raw, np.int16).astype(np.float32) / 32768.0
 
 
 def finish_alignment(run, wl, model, log=print):
