@@ -1,12 +1,20 @@
 # Voice profile: PROVISIONAL
 
-> **Status: provisional template, not learned from the creator.**
-> This file was NOT inferred from the creator's own videos. No reference videos were supplied.
-> It describes a neutral American historical-documentary narrator, written to a brief, so that
-> scripts have a consistent voice until real samples exist. Replace it once three of the
-> creator's own videos are available: transcribe them, infer the voice and overwrite this file.
+> **This file is the canonical voice profile for this repository.**
+> Path: `scripts/voice-provisional.md`. The yt-* skills look for `~/.claude/youtube/voice.md`,
+> but that home directory is temporary in cloud sessions. Read this file first. If a skill
+> needs the home-directory copy, copy this file there:
+> `mkdir -p ~/.claude/youtube && cp scripts/voice-provisional.md ~/.claude/youtube/voice.md`.
+> Any edit to the voice is made here and committed, never only in the home-directory copy.
 >
-> Created: 2026-10-10, for the Piltdown Man documentary.
+> **Status: provisional template, not learned from the creator.**
+> This profile was NOT inferred from the creator's own videos; no reference videos were supplied.
+> It describes a neutral American historical-documentary narrator, written to a brief, so that
+> scripts have a consistent voice until real samples exist. Once three of the creator's own
+> videos are available, transcribe them, infer the voice, rewrite this file and remove the
+> PROVISIONAL label.
+>
+> Created: 2026-10-10 for the Piltdown Man documentary. Revised: 2026-10-10 (v3 pass).
 
 ## Who we are talking to
 
@@ -46,4 +54,23 @@
   and say what the evidence is.
 - Where sources disagree (dates, ages, cause of death), the narrator says less instead of picking
   one side silently.
-- No claims about what the viewer personally was taught or believes.
+- No claims about what the viewer personally was taught, believes or "would have believed".
+  Address the viewer through what they can see ("You're looking at…"), not what they think.
+- Never flatten a debate into "everyone believed". Name who accepted a claim and who doubted it.
+- Every claim falls into one of three tiers, and the wording matches the tier:
+  - **Fact:** stated plainly.
+  - **Interpretation:** attributed ("the researchers concluded", "historians argue") or hedged
+    ("probably", "almost certainly").
+  - **Unresolved:** said to be open ("is still an open question"), or left out.
+- Every script ships with a claims ledger (claim, tier, source) so the wording can be checked
+  against the evidence.
+
+## Pacing rules
+
+- The first 30 seconds run about 60 to 75 words: hook, one promise, one visual open loop.
+  There is no title sequence before the promise.
+- Every revelation needs a setup earlier in the script, and when it pays off the narration says
+  so ("Remember the line on the tooth?").
+- A major reveal never lands as one more item in a list. Give it its own beat, its own picture
+  and a moment of silence or music before the next fact.
+- Hold back a "not yet": when a clue is only partial, the narrator says it isn't proof yet.
