@@ -1,0 +1,7 @@
+# Per-run working files: large and fully reproducible from the script + pause plan.
+**/clips/
+**/calibration/
+**/concat.txt
+**/narration.wav
+# Offline stub runs are tests, never deliverables.
+**/vo-TEST-STUB-*/

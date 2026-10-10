@@ -1,0 +1,62 @@
+{
+ "_doc": "Planned silences for the Piltdown v3 voiceover, in seconds. They are inserted as real silence between synthesized clips, marked PRESERVE in the EDL and never offered as cuts. Keys: lead_in = silence before S01; para_gap / scene_gap / part_gap = defaults; after = silence after a given paragraph, keyed 'S10.1' = scene S10, paragraph 1 (1-based); tail = silence after the last line.",
+ "lead_in": 1.0,
+ "para_gap": 0.45,
+ "scene_gap": 1.0,
+ "part_gap": 1.6,
+ "tail": 3.0,
+ "after": {
+  "S01.1": {
+   "seconds": 0.9,
+   "why": "Let the hook's question hang before the promise"
+  },
+  "S02.2": {
+   "seconds": 3.0,
+   "why": "Title card and string sting (TITLE CARD cue)"
+  },
+  "S06.4": {
+   "seconds": 1.2,
+   "why": "Land the 'what you hoped to hear' line"
+  },
+  "S07.3": {
+   "seconds": 1.8,
+   "why": "'He never said exactly where.' Plants the S19 loop; part transition"
+  },
+  "S10.1": {
+   "seconds": 2.0,
+   "why": "Scripted BEAT: two seconds of silence"
+  },
+  "S10.2": {
+   "seconds": 1.4,
+   "why": "Mid-video re-hook lands"
+  },
+  "S12.4": {
+   "seconds": 1.0,
+   "why": "'Not yet proof of a fake.' Held revelation"
+  },
+  "S13.2": {
+   "seconds": 2.0,
+   "why": "'What if someone had planted the bones?' The question breathes"
+  },
+  "S15.2": {
+   "seconds": 1.5,
+   "why": "Biggest reveal: the filed teeth"
+  },
+  "S16.4": {
+   "seconds": 1.2,
+   "why": "Beat before the hook payoff line"
+  },
+  "S19.2": {
+   "seconds": 1.2,
+   "why": "Loop payoff: only Dawson knew the second site"
+  },
+  "S20.2": {
+   "seconds": 1.8,
+   "why": "Verdict and open question settle; part transition"
+  },
+  "S21.1": {
+   "seconds": 1.0,
+   "why": "Fade to black before the single ask"
+  }
+ }
+}
